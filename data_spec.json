@@ -27,7 +27,7 @@
       ]
     },
     "receiver": {
-      "type": "LowCardinality(Nullable(String))"
+      "type": "UInt64"
     },
     "country": {
       "type": "LowCardinality(Nullable(String))",
