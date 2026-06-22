@@ -7,7 +7,7 @@
 - поднять в docker  ClickHouse, Apache Superset. 
 - спроектировать витрину данных (список полей дан ниже) и сформировать DDL ClickHouse
 - написать генератор данных. Временной интервал 1 год, общее количество 1 млн строк. 
-- собрать дашборд **SMS Operations** в Apache Superset — см. [требования к дашборду](#дашборд-apache-superset)
+- собрать дашборд **SMS Operations** в Apache Superset 
 - сделать скриншоты дашбордов
 - объяснить как происходил выбор ключа сортировки, партиционирования/индексов/движков
 
@@ -23,7 +23,7 @@
 
 ## Дашборд Apache Superset
 
-Соберите дашборд **SMS Operations** на данных `messages_mart` в ClickHouse.
+Соберите дашборд **SMS Operations** на данных `messages_mart` в ClickHouse. Ниже приведен возможный вариант реализации дашборда. Приветствуется применение собственных метрик, типов чартов и т.д.
 
 ### Глобальные фильтры (минимум)
 
@@ -43,17 +43,16 @@
 | Delivery rate  | Big number                 | доля `delivery_status = 'DELIVRD'` от общего числа SMS |
 | Топ стран      | Bar                        | `count(message_id)` по `country`, top 10               |
 | Топ операторов | Bar / Pie                  | `count(message_id)` по `receiver_operator`             |
-| Выручка        | Time series или Big number | `sum(price)`                                           |
+| Выручка        | Time series или Big number | `sum(price)` по каждой валюте                          |
 
 
 ### На усмотрение кандидата
 
 - дополнительные фильтры: `country`, `delivery_status`, `currency`
-- разбивка выручки по валютам
 - чарты: failed statuses, `delivery_time`, `segment_count`, inbound/outbound (`direction`)
 - исключение soft-delete: `WHERE deleted_at IS NULL`
 
-***Приветствуются любые ваши идеи и их реализации.***
+***По дашбордам нет жесткого ТЗ. Приветствуются любые ваши идеи и их реализации.***
 
 ## Формат сдачи
 
@@ -61,20 +60,10 @@
 
 ### Минимальный набор артефактов
 
-1. `README.md` — как поднять стенд (`docker compose up -d`), сгенерировать данные, открыть Superset; порты и учётные данные.
+1. `README.md` 
 2. `ddl/` — DDL витрины `messages_mart`.
 3. Генератор данных (скрипт или SQL) с параметрами объёма (1M строк, интервал 1 год).
-4. Скриншот дашборда **SMS Operations** целиком (с видимыми фильтрами) в `screenshots/` или в README.
-5. `DESIGN.md` (или отдельный раздел в README):
-  - обоснование `ENGINE`, `PARTITION BY`, `ORDER BY`;
-  - раздел **Дашборд**: метрики, тарифицируемые статусы, работа с валютами;
-  - допущения по генерации данных.
-
-### Желательно
-
-- `docker-compose.yml`, `Makefile` — полный подъём одной командой.
-- Экспорт объектов Superset в YAML (`charts/`, `dashboards/`).
-- Диаграмма архитектуры (Mermaid), по аналогии с [de_testovoe](../de_testovoe/diagrams/README.md).
+4. Скриншоты дашборда **SMS Operations** целиком (с видимыми фильтрами) , скриношты каждого чарта в режиме edit в дирректории`screenshots/` или в README.
 
 # Описание полей
 
@@ -91,13 +80,13 @@
 ### Время и адресация
 
 
-| Поле            | Тип                                | Описание                                                                                                                |
-| --------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `sent_date`     | `DateTime64(6)`                    | Дата/время отправки SMS.                                                                                                |
-| `sender`        | `LowCardinality(Nullable(String))` | Альфа-имя отправителя (бренд): `Google`, `Amazon`, `PayPal` и т.д. — см. [data_spec.json](data_spec.json).              |
-| `receiver`      | `LowCardinality(Nullable(String))` | Номер получателя в международном формате (MSISDN). Префикс зависит от `country` — см. [data_spec.json](data_spec.json). |
-| `country`       | `LowCardinality(Nullable(String))` | Страна направления                                                                                                      |
-| `segment_count` | `UInt32`                           | Количество сегментов                                                                                                    |
+| Поле            | Тип                                | Описание                                                                        |
+| --------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
+| `sent_date`     | `DateTime64(6)`                    | Дата/время отправки SMS.                                                        |
+| `sender`        | `LowCardinality(Nullable(String))` | Альфа-имя отправителя (бренд): `Google`, `Amazon`, `PayPal` и т.д.              |
+| `receiver`      | UInt64                             | Номер получателя в международном формате (MSISDN). Префикс зависит от `country` |
+| `country`       | `LowCardinality(Nullable(String))` | Страна направления                                                              |
+| `segment_count` | `UInt32`                           | Количество сегментов                                                            |
 
 
 ### Статусы доставки
@@ -113,12 +102,12 @@
 ### Тарификация и направление
 
 
-| Поле                | Тип                                | Описание                                                                     |
-| ------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
-| `price`             | `Float32`                          | Цена SMS для клиента (в валюте `currency`)                                   |
-| `currency`          | `LowCardinality(Nullable(String))` | Валюта тарифа: `EUR`, `USD`, `RUB`.                                          |
-| `receiver_operator` | `LowCardinality(Nullable(String))` | Оператор получателя. Список значений — см. [data_spec.json](data_spec.json). |
-| `direction`         | `UInt8`                            | Направление трафика: `0` — inbound, `1` — outbound.                          |
+| Поле                | Тип                                | Описание                                            |
+| ------------------- | ---------------------------------- | --------------------------------------------------- |
+| `price`             | `Float32`                          | Цена SMS для клиента (в валюте `currency`)          |
+| `currency`          | `LowCardinality(Nullable(String))` | Валюта тарифа: `EUR`, `USD`,`RUB`.                  |
+| `receiver_operator` | `LowCardinality(Nullable(String))` | Оператор получателя                                 |
+| `direction`         | `UInt8`                            | Направление трафика: `0` — inbound, `1` — outbound. |
 
 
 ### Метаданные
@@ -132,4 +121,5 @@
 
 
 ---
-Машиночитаемая спецификация полей, справочников и правил генерации[data_spec.json](data_spec.json).
+
+Спецификация полей, справочников и правил генерации представлена в[data_spec.json](data_spec.json).
