@@ -67,7 +67,7 @@
     },
     "currency": {
       "type": "LowCardinality(Nullable(String))",
-      "values": ["EUR", "RUB", "USD"]
+      "values": ["USD"]
     },
     "receiver_operator": {
       "type": "LowCardinality(Nullable(String))",
